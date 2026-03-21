@@ -334,6 +334,7 @@ class Extractor:
         decrypted_subdir: str = "decrypted",
         encrypted_subdir: str = "encrypted",
         recurse_nested: bool = True,
+        flat_output: bool = False,
         verbose: bool = True,
         on_entry: Callable[[dict], None] | None = None,
         on_progress_init: Callable[[int], None] | None = None,
@@ -344,6 +345,7 @@ class Extractor:
         self.decrypted_subdir = decrypted_subdir
         self.encrypted_subdir = encrypted_subdir
         self.recurse_nested = recurse_nested
+        self.flat_output = flat_output
         self.verbose = verbose
         self.on_entry = on_entry
         self.on_progress_init = on_progress_init
@@ -362,7 +364,7 @@ class Extractor:
         blob = input_path.read_bytes()
         source_name = input_path.name
         container_label = source_name
-        container_dir = self.out_dir / input_path.stem
+        container_dir = self.out_dir if self.flat_output else self.out_dir / input_path.stem
         self._extract_rad_blob(blob, container_label, container_dir)
 
     def _extract_rad_blob(self, blob: bytes, source: str, target_dir: pathlib.Path) -> None:
@@ -503,7 +505,11 @@ class Extractor:
     ) -> pathlib.Path:
         rel = sanitize_relpath(entry.name)
         if rel.parts:
-            candidate = target_dir / rel
+            if self.flat_output:
+                # Flatten: use only the filename, drop subdirectory structure
+                candidate = target_dir / rel.parts[-1]
+            else:
+                candidate = target_dir / rel
         else:
             candidate = target_dir / f"entry_{entry.index:06d}{default_ext}"
 

@@ -20,6 +20,7 @@ from PySide6.QtGui import (
     QDropEvent,
     QFont,
     QFontDatabase,
+    QIcon,
     QPalette,
 )
 from PySide6.QtWidgets import (
@@ -95,6 +96,7 @@ class ExtractionWorker(QThread):
                 out_dir=self.out_dir,
                 write_encrypted=True,
                 decrypt_encrypted=self.decrypt,
+                flat_output=True,
                 verbose=False,
                 on_entry=lambda d: self.entry_extracted.emit(d),
                 on_progress_init=lambda n: self.progress_init.emit(n),
@@ -227,6 +229,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("BYOND RSC Extractor")
         self.resize(600, 700)
         self.setMinimumSize(500, 500)
+
+        # Window icon — check PyInstaller bundle, then script directory
+        icon_path = pathlib.Path(getattr(sys, '_MEIPASS', pathlib.Path(__file__).parent)) / "lol.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         # State
         self._extracting           = False
@@ -486,16 +493,16 @@ class MainWindow(QMainWindow):
         self._progress_bar.setValue(self._done_entries)
         self._label_count.setText(f"EXTRACTING: {self._done_entries} / {self._total_entries}")
 
-        # ETA
-        if len(self._eta_times) >= 2:
-            window = list(self._eta_times)
-            elapsed_window = window[-1] - window[0]
-            rate = (len(window) - 1) / elapsed_window if elapsed_window > 0 else 0
-            remaining = self._total_entries - self._done_entries
-            if rate > 0 and remaining > 0:
-                self._label_eta.setText(f"ETA: {self._fmt_eta(remaining / rate)}")
-            else:
-                self._label_eta.setText("ETA: --:--")
+        # ETA — use wall-clock elapsed since start for stable rate
+        if self._done_entries >= 5:
+            elapsed = time.monotonic() - self._eta_start
+            if elapsed > 0:
+                rate = self._done_entries / elapsed
+                remaining = self._total_entries - self._done_entries
+                if rate > 0 and remaining > 0:
+                    self._label_eta.setText(f"ETA: {self._fmt_eta(remaining / rate)}")
+                else:
+                    self._label_eta.setText("ETA: --:--")
 
     def _on_extraction_finished(self, summary) -> None:
         self._extracting = False

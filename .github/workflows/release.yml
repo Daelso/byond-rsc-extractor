@@ -52,8 +52,10 @@ jobs:
           pyinstaller
           --onefile
           ${{ matrix.pyinstaller_extra }}
+          --icon "lol.ico"
           --name "BYOND_RSC_Extractor_${{ matrix.platform }}"
           --add-data "seed_finder${{ matrix.seed_finder_ext }}${{ matrix.add_data_sep }}."
+          --add-data "lol.ico${{ matrix.add_data_sep }}."
           gui.py
 
       - name: Upload artifact
