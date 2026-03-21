@@ -16,3 +16,9 @@ build/
 
 # Superpowers brainstorm sessions
 .superpowers/
+
+# Claude Code
+.claude/
+
+# Pytest
+.pytest_cache/

@@ -521,6 +521,15 @@ class MainWindow(QMainWindow):
         self._add_row("error", f"ERROR: {msg}")
         self._drop_zone.reset_text()
 
+    # ------------------------------------------------------------------
+    # Clean shutdown
+    # ------------------------------------------------------------------
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait(3000)
+        event.accept()
+
 
 # ---------------------------------------------------------------------------
 # Entry point
