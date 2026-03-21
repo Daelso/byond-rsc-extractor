@@ -1,0 +1,6 @@
+# Extracted output artifacts
+extracted/
+
+# BYOND resource container inputs
+*.rsc
+*.RSC

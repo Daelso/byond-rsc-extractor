@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf /mnt/c/Users/chase/Downloads/extracted)",
+      "Bash(cp -r /home/chase/projects/byond-extractor/extracted /mnt/c/Users/chase/Downloads/)",
+      "Bash(cmd.exe /c \"rmdir /s /q C:\\\\Users\\\\chase\\\\Downloads\\\\extracted\")",
+      "Bash(zip -r /mnt/c/Users/chase/Downloads/extracted.zip extracted/)",
+      "Bash(/home/chase/.claude/plugins/cache/superpowers-dev/superpowers/5.0.2/skills/brainstorming/scripts/start-server.sh --project-dir /home/chase/projects/byond-extractor)",
+      "Bash(/home/chase/.claude/plugins/cache/superpowers-dev/superpowers/5.0.2/skills/brainstorming/scripts/stop-server.sh /home/chase/projects/byond-extractor/.superpowers/brainstorm/79659-1774063143)"
+    ]
+  }
+}

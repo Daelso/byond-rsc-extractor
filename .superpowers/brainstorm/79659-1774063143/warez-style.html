@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BYOND RSC Extractor — Style Concepts</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=VT323&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #c0c0c0;
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h2 {
+    font-family: 'Orbitron', sans-serif;
+    color: #00ccff;
+    text-align: center;
+    padding: 30px 20px 5px;
+    font-size: 18px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .subtitle {
+    text-align: center;
+    color: #555;
+    font-size: 13px;
+    margin-bottom: 30px;
+  }
+
+  .concepts {
+    display: flex;
+    gap: 24px;
+    padding: 0 24px 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .concept {
+    width: 420px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .concept:hover { transform: translateY(-4px); }
+
+  .concept-label {
+    font-family: 'Orbitron', sans-serif;
+    color: #00ccff;
+    font-size: 13px;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .concept-desc {
+    color: #666;
+    font-size: 11px;
+    text-align: center;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* ===== CONCEPT A: Classic NFO/ANSI style ===== */
+  .nfo-window {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0,200,255,0.05);
+  }
+  .nfo-titlebar {
+    background: linear-gradient(90deg, #000a14, #001a2e, #000a14);
+    border-bottom: 1px solid #0066aa;
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .nfo-titlebar span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    color: #00aaff;
+    letter-spacing: 3px;
+  }
+  .nfo-dots {
+    display: flex; gap: 4px;
+  }
+  .nfo-dots div {
+    width: 8px; height: 8px; border: 1px solid #0066aa;
+  }
+  .nfo-body { padding: 12px; }
+
+  .nfo-ascii {
+    color: #0088cc;
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    text-align: center;
+    padding: 8px 0;
+    line-height: 1.1;
+    white-space: pre;
+    text-shadow: 0 0 8px rgba(0,136,204,0.4);
+  }
+
+  .nfo-drop {
+    border: 1px dashed #005588;
+    margin: 8px 0;
+    padding: 16px;
+    text-align: center;
+    color: #005588;
+    font-size: 11px;
+    background: rgba(0,40,80,0.1);
+  }
+  .nfo-drop .arrow { color: #00aaff; font-family: 'VT323', monospace; font-size: 18px; }
+
+  .nfo-settings {
+    display: flex; gap: 6px; margin: 8px 0; align-items: center;
+  }
+  .nfo-path {
+    flex: 1; background: #000; border: 1px solid #003355; padding: 4px 6px;
+    color: #005588; font-size: 9px;
+  }
+  .nfo-btn {
+    background: #001a2e; border: 1px solid #0055aa; color: #00aaff;
+    padding: 3px 8px; font-size: 9px; font-family: 'Share Tech Mono', monospace;
+  }
+  .nfo-check { color: #00aaff; font-size: 10px; }
+
+  .nfo-progress-label {
+    display: flex; justify-content: space-between; color: #005588; font-size: 9px; margin-bottom: 3px;
+  }
+  .nfo-progress-bar {
+    background: #001122; height: 10px; border: 1px solid #003355; position: relative;
+  }
+  .nfo-progress-fill {
+    background: linear-gradient(90deg, #003366, #0088cc, #00bbff);
+    height: 100%; width: 21%;
+    box-shadow: 0 0 10px rgba(0,136,204,0.5);
+  }
+  .nfo-progress-text {
+    position: absolute; right: 4px; top: 0; font-size: 8px; color: #00aaff; line-height: 10px;
+  }
+
+  .nfo-list {
+    margin-top: 8px; font-size: 9px; background: #000;
+    border: 1px solid #002244; max-height: 90px; overflow: hidden;
+  }
+  .nfo-row {
+    display: flex; justify-content: space-between; padding: 2px 6px;
+    border-bottom: 1px solid #001122;
+  }
+  .nfo-row.ok { color: #00aa44; }
+  .nfo-row.dec { color: #ccaa00; }
+  .nfo-row.enc { color: #cc3333; }
+  .nfo-row .meta { color: #333; }
+
+  .nfo-footer {
+    border-top: 1px solid #002244;
+    padding: 4px 8px;
+    color: #003355;
+    font-size: 8px;
+    text-align: center;
+    font-family: 'VT323', monospace;
+  }
+
+  /* ===== CONCEPT B: Keygen / Crackintro style ===== */
+  .keygen-window {
+    background: linear-gradient(180deg, #0c0c18, #06060f);
+    border: 2px solid transparent;
+    border-image: linear-gradient(180deg, #ff00ff44, #00ffff44, #ff00ff44) 1;
+    overflow: hidden;
+    position: relative;
+  }
+  .keygen-window::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #ff00ff, #00ffff, #ffff00, #ff00ff, transparent);
+    animation: scan 3s linear infinite;
+  }
+  @keyframes scan {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+
+  .keygen-titlebar {
+    background: linear-gradient(90deg, #1a0028, #0a0028, #00182a, #0a0028, #1a0028);
+    padding: 8px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #ffffff15;
+  }
+  .keygen-titlebar span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 4px;
+    background: linear-gradient(90deg, #ff00ff, #00ffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .keygen-x {
+    color: #ff00ff; font-size: 14px; font-family: 'Orbitron', sans-serif;
+  }
+
+  .keygen-body { padding: 12px; }
+
+  .keygen-banner {
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    padding: 10px 0 4px;
+    background: linear-gradient(180deg, #ff00ff, #ff6600, #ffff00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+  .keygen-sub {
+    text-align: center;
+    font-family: 'VT323', monospace;
+    font-size: 12px;
+    color: #00ffff88;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+  }
+
+  .keygen-drop {
+    border: 1px solid #ff00ff44;
+    background: linear-gradient(135deg, rgba(255,0,255,0.03), rgba(0,255,255,0.03));
+    margin: 8px 0;
+    padding: 16px;
+    text-align: center;
+    color: #aa44cc;
+    font-size: 11px;
+    position: relative;
+  }
+  .keygen-drop::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, #ff00ff55, transparent);
+  }
+  .keygen-drop .ico { font-size: 18px; margin-bottom: 4px; }
+
+  .keygen-settings {
+    display: flex; gap: 6px; margin: 8px 0; align-items: center;
+  }
+  .keygen-path {
+    flex: 1; background: #08081a; border: 1px solid #ff00ff33; padding: 4px 6px;
+    color: #8844aa; font-size: 9px; font-family: 'Share Tech Mono', monospace;
+  }
+  .keygen-btn {
+    background: linear-gradient(180deg, #2a0044, #1a002e);
+    border: 1px solid #ff00ff66; color: #ff66ff;
+    padding: 3px 8px; font-size: 9px; font-family: 'Share Tech Mono', monospace;
+  }
+  .keygen-chk { color: #00ffff; font-size: 10px; }
+
+  .keygen-progress-label {
+    display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 3px;
+    color: #666;
+  }
+  .keygen-progress-bar {
+    background: #08081a; height: 12px; border: 1px solid #ffffff15; position: relative;
+    overflow: hidden;
+  }
+  .keygen-progress-fill {
+    height: 100%; width: 21%;
+    background: linear-gradient(90deg, #ff00ff, #ff6600, #ffff00, #00ffff);
+    box-shadow: 0 0 15px rgba(255,0,255,0.4);
+    position: relative;
+  }
+  .keygen-progress-fill::after {
+    content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 20px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+  }
+
+  .keygen-list {
+    margin-top: 8px; font-size: 9px;
+    background: #04040e;
+    border: 1px solid #ffffff0a; max-height: 80px; overflow: hidden;
+  }
+  .keygen-row {
+    display: flex; justify-content: space-between; padding: 2px 6px;
+    border-bottom: 1px solid #ffffff08;
+  }
+  .keygen-row.ok { color: #00ff88; }
+  .keygen-row.dec { color: #ffaa00; }
+  .keygen-row.enc { color: #ff4444; }
+  .keygen-row .meta { color: #333; }
+
+  .keygen-footer {
+    padding: 4px;
+    text-align: center;
+    font-family: 'VT323', monospace;
+    font-size: 9px;
+    color: #ffffff22;
+    letter-spacing: 3px;
+  }
+
+  /* Selection highlight */
+  .concept.selected .concept-label { color: #fff; }
+  .concept[data-choice="a"].selected .nfo-window { border-color: #00aaff; box-shadow: 0 0 40px rgba(0,170,255,0.15); }
+  .concept[data-choice="b"].selected .keygen-window { box-shadow: 0 0 40px rgba(255,0,255,0.15); }
+</style>
+</head>
+<body>
+
+<h2>Visual Direction</h2>
+<p class="subtitle">Click to select the aesthetic that fits best</p>
+
+<div class="concepts">
+  <!-- CONCEPT A -->
+  <div class="concept" data-choice="a" onclick="toggleSelect(this)">
+    <div class="concept-label">A — NFO / ANSI</div>
+    <div class="nfo-window">
+      <div class="nfo-titlebar">
+        <span>BYOND RSC EXTRACTOR</span>
+        <div class="nfo-dots"><div></div><div></div><div></div></div>
+      </div>
+      <div class="nfo-body">
+        <div class="nfo-ascii">
+ ██▄ ▀▄▀ ▄▀▄ █▄ █ █▀▄
+ █▄█  █  ▀▄▀ █ ▀█ █▄▀
+ ══════════════════════
+   R S C   E X T R A C T O R</div>
+        <div class="nfo-drop">
+          <div class="arrow">▼ ▼ ▼</div>
+          DROP .RSC FILE HERE
+        </div>
+        <div class="nfo-settings">
+          <div class="nfo-path">C:\Users\chase\extracted\</div>
+          <div class="nfo-btn">[BROWSE]</div>
+          <div class="nfo-check">[✓] DECRYPT</div>
+        </div>
+        <div class="nfo-progress-label">
+          <span>EXTRACTING: 1,247 / 5,958</span>
+          <span>ETA: 00:32</span>
+        </div>
+        <div class="nfo-progress-bar">
+          <div class="nfo-progress-fill"></div>
+          <div class="nfo-progress-text">21%</div>
+        </div>
+        <div class="nfo-list">
+          <div class="nfo-row ok"><span>[+] player_icon.dmi</span><span class="meta">DMI/PNG │ 12.4 KB │ OK</span></div>
+          <div class="nfo-row dec"><span>[*] Density.dmi</span><span class="meta">DMI/PNG │ 8.2 KB │ DECRYPTED</span></div>
+          <div class="nfo-row ok"><span>[+] ambient_loop.ogg</span><span class="meta">OGG/WAV │ 245 KB │ OK</span></div>
+          <div class="nfo-row ok"><span>[+] title_font.ttf</span><span class="meta">Font │ 67 KB │ OK</span></div>
+          <div class="nfo-row enc"><span>[!] unknown_003.bin</span><span class="meta">Unknown │ 1.1 KB │ ENCRYPTED</span></div>
+        </div>
+      </div>
+      <div class="nfo-footer">─── BYOND RSC EXTRACTOR v1.0 ── ──── ─── ── ─</div>
+    </div>
+    <div class="concept-desc">Clean, restrained NFO/ANSI aesthetic. Cyan-on-black, monospaced, blocky ASCII header. Classic scene text-file vibe translated to a GUI.</div>
+  </div>
+
+  <!-- CONCEPT B -->
+  <div class="concept" data-choice="b" onclick="toggleSelect(this)">
+    <div class="concept-label">B — KEYGEN / CRACKINTRO</div>
+    <div class="keygen-window">
+      <div class="keygen-titlebar">
+        <span>RSC EXTRACTOR</span>
+        <div class="keygen-x">✕</div>
+      </div>
+      <div class="keygen-body">
+        <div class="keygen-banner">BYOND</div>
+        <div class="keygen-sub">· RSC EXTRACTOR ·</div>
+        <div class="keygen-drop">
+          <div class="ico">⬡</div>
+          DROP .RSC FILE OR CLICK TO BROWSE
+        </div>
+        <div class="keygen-settings">
+          <div class="keygen-path">C:\Users\chase\extracted\</div>
+          <div class="keygen-btn">[DIR]</div>
+          <div class="keygen-chk">[✓] DECRYPT</div>
+        </div>
+        <div class="keygen-progress-label">
+          <span>1,247 / 5,958 ENTRIES</span>
+          <span>ETA ~32s</span>
+        </div>
+        <div class="keygen-progress-bar">
+          <div class="keygen-progress-fill"></div>
+        </div>
+        <div class="keygen-list">
+          <div class="keygen-row ok"><span>► player_icon.dmi</span><span class="meta">DMI/PNG · 12.4 KB</span></div>
+          <div class="keygen-row dec"><span>► Density.dmi</span><span class="meta">DMI/PNG · 8.2 KB · DECRYPTED</span></div>
+          <div class="keygen-row ok"><span>► ambient_loop.ogg</span><span class="meta">OGG/WAV · 245 KB</span></div>
+          <div class="keygen-row ok"><span>► title_font.ttf</span><span class="meta">Font · 67 KB</span></div>
+          <div class="keygen-row enc"><span>► unknown_003.bin</span><span class="meta">Unknown · 1.1 KB · ENC</span></div>
+        </div>
+      </div>
+      <div class="keygen-footer">─ ·· GREETS TO THE SCENE ·· ─</div>
+    </div>
+    <div class="concept-desc">Bold keygen/crackintro energy. Magenta-cyan gradients, pulsing scanlines, chunky Orbitron type. Loud, unapologetic, maximalist scene flavor.</div>
+  </div>
+</div>
+
+<script>
+function toggleSelect(el) {
+  document.querySelectorAll('.concept').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  const text = el.querySelector('.concept-label').textContent;
+  fetch('/.event', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({type:'click', choice, text, timestamp: Math.floor(Date.now()/1000)})
+  }).catch(()=>{});
+}
+</script>
+</body>
+</html>
