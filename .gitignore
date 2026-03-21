@@ -4,3 +4,15 @@ extracted/
 # BYOND resource container inputs
 *.rsc
 *.RSC
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Superpowers brainstorm sessions
+.superpowers/
