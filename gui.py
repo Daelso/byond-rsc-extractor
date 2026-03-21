@@ -196,7 +196,7 @@ HEADER_TEXT = (
     "   R S C   E X T R A C T O R"
 )
 
-FOOTER_TEXT = "─── BYOND RSC EXTRACTOR v1.0 ── ──── ─── ── ─"
+FOOTER_TEXT = "─── BYOND RSC EXTRACTOR v1.3 ── ──── ─── ── ─"
 
 
 def _fmt_size(n: int) -> str:
