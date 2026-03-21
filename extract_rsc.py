@@ -455,36 +455,11 @@ class Extractor:
             if effective_encrypted and not self.write_encrypted:
                 continue
 
-            # Determine callback status
-            if decrypted:
-                cb_status = "decrypted"
-            elif decrypt_attempted:
-                cb_status = "decrypt_failed"
-            elif entry.encrypted:
-                cb_status = "encrypted"
-            else:
-                cb_status = "ok"
-
-            # In flat_output mode, only write decrypted and encrypted files
             write_dir = target_dir
             if decrypted:
                 write_dir = target_dir / self.decrypted_subdir
             elif effective_encrypted:
                 write_dir = target_dir / self.encrypted_subdir
-            elif self.flat_output:
-                # Skip writing plain unencrypted files in flat mode
-                # but still fire callback and check for nested streams
-                self.summary.extracted_files += 1
-                if self.on_entry is not None:
-                    self.on_entry({
-                        "index": entry.index, "source": source,
-                        "name": entry.name, "type_name": type_name,
-                        "size": len(payload), "status": cb_status,
-                        "validation": validation_state,
-                    })
-                if self.recurse_nested and is_valid_rad_stream(payload):
-                    self._extract_rad_blob(payload, f"{source}::{entry.name or entry.index}", target_dir)
-                continue
 
             out_path = self._choose_output_path(write_dir, entry, default_ext, effective_encrypted)
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -492,6 +467,14 @@ class Extractor:
             self.summary.extracted_files += 1
 
             if self.on_entry is not None:
+                if decrypted:
+                    cb_status = "decrypted"
+                elif decrypt_attempted:
+                    cb_status = "decrypt_failed"
+                elif entry.encrypted:
+                    cb_status = "encrypted"
+                else:
+                    cb_status = "ok"
                 self.on_entry({
                     "index": entry.index,
                     "source": source,
@@ -504,8 +487,9 @@ class Extractor:
 
             if self.recurse_nested and not effective_encrypted and is_valid_rad_stream(payload):
                 if self.flat_output:
-                    # Recurse but keep writing to the same target_dir
-                    self._extract_rad_blob(payload, f"{source}::{entry.name or entry.index}", target_dir)
+                    # In flat mode, recurse into nested containers but write
+                    # directly into the top-level output dir (no nested/ subdir)
+                    self._extract_rad_blob(payload, f"{source}::{entry.name or entry.index}", self.out_dir)
                 else:
                     nested_dir = target_dir / "nested" / self._nested_name(entry, out_path)
                     self._extract_rad_blob(payload, f"{source}::{entry.name or entry.index}", nested_dir)
