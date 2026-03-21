@@ -485,7 +485,7 @@ class Extractor:
                     "validation": validation_state,
                 })
 
-            if self.recurse_nested and not effective_encrypted and is_valid_rad_stream(payload):
+            if not self.flat_output and self.recurse_nested and not effective_encrypted and is_valid_rad_stream(payload):
                 nested_dir = target_dir / "nested" / self._nested_name(entry, out_path)
                 self._extract_rad_blob(payload, f"{source}::{entry.name or entry.index}", nested_dir)
 

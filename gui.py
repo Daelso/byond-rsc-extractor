@@ -6,13 +6,12 @@ from __future__ import annotations
 import pathlib
 import sys
 import time
-from collections import deque
 
 from PySide6.QtCore import (
     Qt,
     QThread,
+    QTimer,
     Signal,
-    QMimeData,
 )
 from PySide6.QtGui import (
     QColor,
@@ -30,10 +29,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -57,6 +57,26 @@ C_DIM_BLUE  = "#005588"
 C_BTN_BG    = "#001a2e"
 C_BTN_BORD  = "#0055aa"
 C_PROG_BG   = "#001122"
+
+STATUS_COLORS = {
+    "ok":             C_OK,
+    "decrypted":      C_DECRYPT,
+    "encrypted":      C_ENC,
+    "decrypt_failed": C_ENC,
+    "error":          C_ENC,
+    "warning":        C_DECRYPT,
+    "summary":        C_ACCENT,
+}
+
+STATUS_SIGILS = {
+    "ok":             "[+]",
+    "decrypted":      "[*]",
+    "encrypted":      "[!]",
+    "decrypt_failed": "[!]",
+    "error":          "[!]",
+    "warning":        "[*]",
+    "summary":        " ══",
+}
 
 MONO_FAMILIES = ["Courier New", "Courier", "Lucida Console", "DejaVu Sans Mono", "Monospace"]
 
@@ -167,50 +187,6 @@ class DropZone(QLabel):
 
 
 # ---------------------------------------------------------------------------
-# Single file row widget
-# ---------------------------------------------------------------------------
-class FileRow(QWidget):
-    _STATUS_STYLE = {
-        "ok":            (f"color: {C_OK};",      "[+]"),
-        "decrypted":     (f"color: {C_DECRYPT};", "[*]"),
-        "encrypted":     (f"color: {C_ENC};",     "[!]"),
-        "decrypt_failed":(f"color: {C_ENC};",     "[!]"),
-        "error":         (f"color: {C_ENC};",     "[!]"),
-        "summary":       (f"color: {C_ACCENT};",  " ══"),
-    }
-
-    def __init__(self, status: str, text: str, meta: str = "", parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setStyleSheet(f"border-bottom: 1px solid {C_MUTED}; background: {C_BG};")
-
-        row = QHBoxLayout(self)
-        row.setContentsMargins(4, 2, 4, 2)
-        row.setSpacing(6)
-
-        style, sigil = self._STATUS_STYLE.get(status, (f"color: {C_TEXT};", "[ ]"))
-
-        badge = QLabel(sigil)
-        badge.setFont(mono_font(9))
-        badge.setStyleSheet(style)
-        badge.setFixedWidth(28)
-
-        name_lbl = QLabel(text)
-        name_lbl.setFont(mono_font(9))
-        name_lbl.setStyleSheet(f"color: {C_TEXT}; border: none;")
-        name_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
-        row.addWidget(badge)
-        row.addWidget(name_lbl)
-
-        if meta:
-            meta_lbl = QLabel(meta)
-            meta_lbl.setFont(mono_font(8))
-            meta_lbl.setStyleSheet(f"color: {C_DIM_BLUE}; border: none;")
-            meta_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            row.addWidget(meta_lbl)
-
-
-# ---------------------------------------------------------------------------
 # Main window
 # ---------------------------------------------------------------------------
 HEADER_TEXT = (
@@ -221,6 +197,14 @@ HEADER_TEXT = (
 )
 
 FOOTER_TEXT = "─── BYOND RSC EXTRACTOR v1.0 ── ──── ─── ── ─"
+
+
+def _fmt_size(n: int) -> str:
+    if n < 1024:
+        return f"{n}B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.1f}KB"
+    return f"{n / (1024 * 1024):.1f}MB"
 
 
 class MainWindow(QMainWindow):
@@ -241,9 +225,14 @@ class MainWindow(QMainWindow):
         self._user_picked_output   = False
         self._total_entries        = 0
         self._done_entries         = 0
-        self._eta_times: deque[float] = deque(maxlen=50)
         self._eta_start: float     = 0.0
         self._worker: ExtractionWorker | None = None
+
+        # Batch buffer — accumulate entries from worker, flush on timer
+        self._pending_entries: list[dict] = []
+        self._flush_timer = QTimer(self)
+        self._flush_timer.setInterval(50)  # flush every 50ms
+        self._flush_timer.timeout.connect(self._flush_entries)
 
         self._apply_palette()
         self._build_ui()
@@ -354,25 +343,16 @@ class MainWindow(QMainWindow):
         prog_vbox.addWidget(self._progress_bar)
         vbox.addWidget(self._progress_widget)
 
-        # 5. File list (scrollable, expanding)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet(
-            f"QScrollArea {{ background: {C_BG}; border: 1px solid {C_BORDER}; }}"
+        # 5. File list — QListWidget for performance
+        self._file_list = QListWidget()
+        self._file_list.setFont(mono_font(9))
+        self._file_list.setStyleSheet(
+            f"QListWidget {{ background: {C_BG}; border: 1px solid {C_BORDER}; outline: none; }}"
+            f"QListWidget::item {{ padding: 1px 4px; border-bottom: 1px solid #111; }}"
             f"QScrollBar:vertical {{ background: {C_BG}; width: 8px; }}"
             f"QScrollBar::handle:vertical {{ background: {C_BORDER}; }}"
         )
-
-        self._list_widget = QWidget()
-        self._list_widget.setStyleSheet(f"background: {C_BG};")
-        self._list_layout = QVBoxLayout(self._list_widget)
-        self._list_layout.setContentsMargins(2, 2, 2, 2)
-        self._list_layout.setSpacing(0)
-        self._list_layout.addStretch()  # keeps rows pinned to top initially
-
-        scroll.setWidget(self._list_widget)
-        self._scroll_area = scroll
-        vbox.addWidget(scroll, 1)  # stretch=1 → expands
+        vbox.addWidget(self._file_list, 1)  # stretch=1 → expands
 
         # 6. Footer
         footer = QLabel(FOOTER_TEXT)
@@ -384,33 +364,47 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _add_row(self, status: str, text: str, meta: str = "") -> None:
-        """Insert a FileRow before the trailing stretch."""
-        row = FileRow(status, text, meta)
-        # layout: items 0..N-2 are rows, item N-1 is the stretch
-        count = self._list_layout.count()
-        self._list_layout.insertWidget(count - 1, row)
-        # auto-scroll
-        self._scroll_area.verticalScrollBar().setValue(
-            self._scroll_area.verticalScrollBar().maximum()
-        )
+    def _add_list_item(self, text: str, color: str) -> None:
+        item = QListWidgetItem(text)
+        item.setForeground(QColor(color))
+        self._file_list.addItem(item)
 
-    def _clear_list(self) -> None:
-        while self._list_layout.count() > 1:          # keep the trailing stretch
-            item = self._list_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+    def _scroll_to_bottom(self) -> None:
+        self._file_list.scrollToBottom()
 
-    def _fmt_size(self, n: int) -> str:
-        if n < 1024:
-            return f"{n}B"
-        if n < 1024 * 1024:
-            return f"{n / 1024:.1f}KB"
-        return f"{n / (1024 * 1024):.1f}MB"
+    def _flush_entries(self) -> None:
+        """Batch-add pending entries to the list widget."""
+        if not self._pending_entries:
+            return
+        batch = self._pending_entries
+        self._pending_entries = []
 
-    def _fmt_eta(self, seconds: float) -> str:
-        s = int(seconds)
-        return f"{s // 60:02d}:{s % 60:02d}"
+        for entry in batch:
+            status = entry.get("status", "ok")
+            name   = entry.get("name", "?")
+            tname  = entry.get("type_name", "")
+            size   = entry.get("size", 0)
+            sigil  = STATUS_SIGILS.get(status, "[ ]")
+            color  = STATUS_COLORS.get(status, C_TEXT)
+            line   = f"{sigil} {name:<40s}  {tname:<10s} {_fmt_size(size):>8s}"
+            self._add_list_item(line, color)
+
+        self._done_entries += len(batch)
+        self._progress_bar.setValue(min(self._done_entries, self._total_entries))
+        self._label_count.setText(f"EXTRACTING: {self._done_entries} / {self._total_entries}")
+
+        # ETA
+        elapsed = time.monotonic() - self._eta_start
+        if elapsed > 0.5 and self._done_entries > 0:
+            rate = self._done_entries / elapsed
+            remaining = self._total_entries - self._done_entries
+            if rate > 0 and remaining > 0:
+                secs = remaining / rate
+                self._label_eta.setText(f"ETA: {int(secs) // 60:02d}:{int(secs) % 60:02d}")
+            else:
+                self._label_eta.setText("ETA: --:--")
+
+        self._scroll_to_bottom()
 
     # ------------------------------------------------------------------
     # Slots — wiring
@@ -428,18 +422,19 @@ class MainWindow(QMainWindow):
         p = pathlib.Path(path)
 
         if p.suffix.lower() != ".rsc":
-            self._add_row("error", f"ERROR: File must be a .rsc file  ({p.name})")
+            self._add_list_item(f"[!] ERROR: File must be a .rsc file  ({p.name})", C_ENC)
             return
 
         try:
             _ = p.stat()
         except OSError as exc:
-            self._add_row("error", f"ERROR: {exc}")
+            self._add_list_item(f"[!] ERROR: {exc}", C_ENC)
             return
 
-        self._clear_list()
+        self._file_list.clear()
         self._extracting = True
         self._progress_initialized = False
+        self._pending_entries = []
 
         if not self._user_picked_output:
             out_dir = p.parent / "extracted"
@@ -459,8 +454,9 @@ class MainWindow(QMainWindow):
         self._worker.extraction_finished.connect(self._on_extraction_finished)
         self._worker.extraction_error.connect(self._on_extraction_error)
         self._worker.warn_message.connect(
-            lambda msg: self._add_row("error", f"WARN: {msg}")
+            lambda msg: self._add_list_item(f"[*] WARN: {msg}", C_DECRYPT)
         )
+        self._flush_timer.start()
         self._worker.start()
 
     def _on_progress_init(self, total: int) -> None:
@@ -469,7 +465,6 @@ class MainWindow(QMainWindow):
         self._progress_initialized = True
         self._total_entries = total
         self._done_entries  = 0
-        self._eta_times.clear()
         self._eta_start = time.monotonic()
         self._progress_bar.setRange(0, max(total, 1))
         self._progress_bar.setValue(0)
@@ -478,60 +473,42 @@ class MainWindow(QMainWindow):
         self._progress_widget.setVisible(True)
 
     def _on_entry_extracted(self, entry: dict) -> None:
-        # Add row
-        status = entry.get("status", "ok")
-        name   = entry.get("name", "?")
-        tname  = entry.get("type_name", "")
-        size   = entry.get("size", 0)
-        valid  = entry.get("validation", "")
-        meta   = f"{tname}  {self._fmt_size(size)}  {valid}"
-        self._add_row(status, name, meta)
-
-        # Update progress
-        self._done_entries += 1
-        self._eta_times.append(time.monotonic())
-        self._progress_bar.setValue(self._done_entries)
-        self._label_count.setText(f"EXTRACTING: {self._done_entries} / {self._total_entries}")
-
-        # ETA — use wall-clock elapsed since start for stable rate
-        if self._done_entries >= 5:
-            elapsed = time.monotonic() - self._eta_start
-            if elapsed > 0:
-                rate = self._done_entries / elapsed
-                remaining = self._total_entries - self._done_entries
-                if rate > 0 and remaining > 0:
-                    self._label_eta.setText(f"ETA: {self._fmt_eta(remaining / rate)}")
-                else:
-                    self._label_eta.setText("ETA: --:--")
+        # Buffer entries — flushed by timer every 50ms
+        self._pending_entries.append(entry)
 
     def _on_extraction_finished(self, summary) -> None:
+        self._flush_timer.stop()
+        self._flush_entries()  # flush any remaining
         self._extracting = False
         self._progress_bar.setValue(self._total_entries)
         self._label_eta.setText("ETA: DONE")
 
         s = summary
-        self._add_row(
-            "summary",
-            f"══ COMPLETE ══  "
+        self._add_list_item(
+            f" ══ COMPLETE ══  "
             f"Files: {s.extracted_files}  "
             f"Encrypted: {s.encrypted_entries}  "
             f"Decrypted: {s.decrypted_ok}  "
             f"Failed: {s.decrypted_fail}  "
             f"Valid: {s.validation_ok}  "
             f"Invalid: {s.validation_fail}",
+            C_ACCENT,
         )
+        self._scroll_to_bottom()
         self._drop_zone.reset_text()
 
     def _on_extraction_error(self, msg: str) -> None:
+        self._flush_timer.stop()
         self._extracting = False
         self._progress_widget.setVisible(False)
-        self._add_row("error", f"ERROR: {msg}")
+        self._add_list_item(f"[!] ERROR: {msg}", C_ENC)
         self._drop_zone.reset_text()
 
     # ------------------------------------------------------------------
     # Clean shutdown
     # ------------------------------------------------------------------
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._flush_timer.stop()
         if self._worker is not None and self._worker.isRunning():
             self._worker.terminate()
             self._worker.wait(3000)
