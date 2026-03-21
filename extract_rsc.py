@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
-from typing import Iterable
+from typing import Callable, Iterable
 
 
 RAD_HEADER_SIZE = 5
@@ -328,6 +328,8 @@ class Extractor:
         encrypted_subdir: str = "encrypted",
         recurse_nested: bool = True,
         verbose: bool = True,
+        on_entry: Callable[[dict], None] | None = None,
+        on_progress_init: Callable[[int], None] | None = None,
     ):
         self.out_dir = out_dir
         self.write_encrypted = write_encrypted
@@ -336,6 +338,8 @@ class Extractor:
         self.encrypted_subdir = encrypted_subdir
         self.recurse_nested = recurse_nested
         self.verbose = verbose
+        self.on_entry = on_entry
+        self.on_progress_init = on_progress_init
         self.summary = Summary()
         self._written_paths: Counter[pathlib.Path] = Counter()
         script_path = pathlib.Path(__file__).resolve()
