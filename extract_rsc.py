@@ -395,9 +395,11 @@ class Extractor:
             type_name, default_ext, expected_kinds = base_type_info(entry.base_type)
             payload = entry.data
             decrypted = False
+            decrypt_attempted = False
             if entry.encrypted and self.decrypt_encrypted:
                 seed = seed_map.get(entry.index)
                 if seed is not None:
+                    decrypt_attempted = True
                     self.summary.decrypted_seed_found += 1
                     candidate = decrypt_beyond_payload(entry.data, seed)
                     kind_after = sniff_kind(candidate)
@@ -454,6 +456,25 @@ class Extractor:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_bytes(payload)
             self.summary.extracted_files += 1
+
+            if self.on_entry is not None:
+                if decrypted:
+                    cb_status = "decrypted"
+                elif decrypt_attempted:
+                    cb_status = "decrypt_failed"
+                elif entry.encrypted:
+                    cb_status = "encrypted"
+                else:
+                    cb_status = "ok"
+                self.on_entry({
+                    "index": entry.index,
+                    "source": source,
+                    "name": entry.name,
+                    "type_name": type_name,
+                    "size": len(payload),
+                    "status": cb_status,
+                    "validation": validation_state,
+                })
 
             if self.recurse_nested and not effective_encrypted and is_valid_rad_stream(payload):
                 nested_dir = target_dir / "nested" / self._nested_name(entry, out_path)
