@@ -1,0 +1,78 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: Windows
+            seed_finder_ext: .exe
+            add_data_sep: ";"
+            compile_cmd: cl.exe /O2 seed_finder.c /Feseed_finder.exe
+            pyinstaller_extra: "--windowed"
+          - os: ubuntu-latest
+            platform: Linux
+            seed_finder_ext: ""
+            add_data_sep: ":"
+            compile_cmd: gcc -O3 -std=c99 seed_finder.c -o seed_finder
+            pyinstaller_extra: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up MSVC
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile seed_finder
+        run: ${{ matrix.compile_cmd }}
+
+      - name: Install dependencies
+        run: pip install PySide6 pyinstaller
+
+      - name: Build executable
+        run: >
+          pyinstaller
+          --onefile
+          ${{ matrix.pyinstaller_extra }}
+          --name "BYOND_RSC_Extractor_${{ matrix.platform }}"
+          --add-data "seed_finder${{ matrix.seed_finder_ext }}${{ matrix.add_data_sep }}."
+          gui.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BYOND_RSC_Extractor_${{ matrix.platform }}
+          path: dist/BYOND_RSC_Extractor_${{ matrix.platform }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            BYOND_RSC_Extractor_Windows/BYOND_RSC_Extractor_Windows.exe
+            BYOND_RSC_Extractor_Linux/BYOND_RSC_Extractor_Linux
