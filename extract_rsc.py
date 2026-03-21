@@ -384,6 +384,9 @@ class Extractor:
             if entry.encrypted:
                 self.summary.encrypted_entries += 1
 
+        if self.on_progress_init is not None:
+            self.on_progress_init(len(parsed_entries))
+
         seed_map: dict[int, int] = {}
         if self.decrypt_encrypted and self._seed_helper is not None:
             seed_map = recover_encryption_seeds(parsed_entries, self._seed_helper)
