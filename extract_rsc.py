@@ -238,22 +238,29 @@ def seed_pattern_for_entry(entry: RscEntry) -> bytes | None:
     return SEED_PATTERNS_BY_SUFFIX.get(suffix)
 
 
-def build_seed_helper(binary_path: pathlib.Path, source_path: pathlib.Path) -> bool:
-    if not source_path.exists():
-        return False
-    if binary_path.exists() and binary_path.stat().st_mtime >= source_path.stat().st_mtime:
-        return True
+def build_seed_helper(binary_path: pathlib.Path, source_path: pathlib.Path) -> pathlib.Path | None:
+    if binary_path.exists() and source_path.exists() and binary_path.stat().st_mtime >= source_path.stat().st_mtime:
+        return binary_path
 
-    compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
-    if compiler is None:
-        return False
+    if source_path.exists():
+        compiler = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
+        if compiler is not None:
+            cmd = [compiler, "-O3", "-std=c99", str(source_path), "-o", str(binary_path)]
+            try:
+                subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except (subprocess.SubprocessError, OSError):
+                pass
+            if binary_path.exists():
+                return binary_path
 
-    cmd = [compiler, "-O3", "-std=c99", str(source_path), "-o", str(binary_path)]
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except (subprocess.SubprocessError, OSError):
-        return False
-    return binary_path.exists()
+    # Fallback: check PyInstaller bundle directory
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass is not None:
+        bundled = pathlib.Path(meipass) / binary_path.name
+        if bundled.exists():
+            return bundled
+
+    return None
 
 
 def recover_encryption_seeds(
@@ -347,7 +354,7 @@ class Extractor:
         helper_binary = script_path.with_name("seed_finder")
         if os.name == "nt":
             helper_binary = helper_binary.with_suffix(".exe")
-        self._seed_helper = helper_binary if build_seed_helper(helper_binary, helper_source) else None
+        self._seed_helper = build_seed_helper(helper_binary, helper_source)
         if self.decrypt_encrypted and self._seed_helper is None and self.verbose:
             print("[WARN] Could not build/find seed helper. Encrypted entries will be kept as .enc")
 
