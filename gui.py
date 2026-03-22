@@ -104,11 +104,18 @@ class ExtractionWorker(QThread):
     extraction_error   = Signal(str)
     warn_message       = Signal(str)
 
-    def __init__(self, input_path: pathlib.Path, out_dir: pathlib.Path, decrypt: bool):
+    def __init__(
+        self,
+        input_path: pathlib.Path,
+        out_dir: pathlib.Path,
+        decrypt: bool,
+        flat_output: bool = False,
+    ):
         super().__init__()
         self.input_path = input_path
         self.out_dir    = out_dir
         self.decrypt    = decrypt
+        self.flat_output = flat_output
 
     def run(self) -> None:
         try:
@@ -116,7 +123,7 @@ class ExtractionWorker(QThread):
                 out_dir=self.out_dir,
                 write_encrypted=True,
                 decrypt_encrypted=self.decrypt,
-                flat_output=True,
+                flat_output=self.flat_output,
                 verbose=False,
                 on_entry=lambda d: self.entry_extracted.emit(d),
                 on_progress_init=lambda n: self.progress_init.emit(n),
@@ -196,7 +203,7 @@ HEADER_TEXT = (
     "   R S C   E X T R A C T O R"
 )
 
-FOOTER_TEXT = "─── BYOND RSC EXTRACTOR v1.4 ── ──── ─── ── ─"
+FOOTER_TEXT = "─── BYOND RSC EXTRACTOR v1.6.0 ── ──── ─── ── ─"
 
 
 def _fmt_size(n: int) -> str:
@@ -304,6 +311,16 @@ class MainWindow(QMainWindow):
             f"QCheckBox::indicator:checked {{ background: {C_ACCENT}; }}"
         )
         settings.addWidget(self._decrypt_cb)
+
+        self._flat_cb = QCheckBox("[ ] FLAT OUTPUT")
+        self._flat_cb.setChecked(False)
+        self._flat_cb.setFont(mono_font(9))
+        self._flat_cb.setStyleSheet(
+            f"color: {C_ACCENT}; background: {C_BG};"
+            f"QCheckBox::indicator {{ border: 1px solid {C_BORDER}; background: {C_BG}; }}"
+            f"QCheckBox::indicator:checked {{ background: {C_ACCENT}; }}"
+        )
+        settings.addWidget(self._flat_cb)
         vbox.addLayout(settings)
 
         # 4. Progress section (hidden initially)
@@ -448,6 +465,7 @@ class MainWindow(QMainWindow):
             input_path=p,
             out_dir=out_dir,
             decrypt=self._decrypt_cb.isChecked(),
+            flat_output=self._flat_cb.isChecked(),
         )
         self._worker.progress_init.connect(self._on_progress_init)
         self._worker.entry_extracted.connect(self._on_entry_extracted)

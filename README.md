@@ -41,6 +41,7 @@ CLI requires Python 3.10+ and optionally a C compiler for seed recovery.
 | `-o, --out` | Output directory (default: `extracted`) |
 | `--decrypt-encrypted` | Attempt decryption of encrypted entries |
 | `--skip-encrypted` | Don't write entries that are still encrypted |
+| `--include-metadata` | Include DDMI metadata records (type `0x0C`) that are skipped by default |
 | `--no-recursive` | Disable nested RAD stream extraction |
 | `--quiet` | Summary-only output |
 
@@ -66,6 +67,8 @@ Not all encrypted entries will decrypt — seed recovery depends on known file p
 
 - **"Could not build/find seed helper"** — Install a C compiler, or place a compiled `seed_finder` binary next to `extract_rsc.py`
 - **Many `.enc` files** — Expected when seeds can't be recovered for those entries
+- **Hash-like names (for example `8ef76a...dmi`)** — Those are BYOND cache keys; original source paths are often not stored in `.rsc`
+- **Need old `.bin` metadata dumps** — Run CLI with `--include-metadata` to extract DDMI metadata entries
 - **SmartScreen warning on Windows** — The `.exe` is unsigned; click "Run anyway"
 
 ## Legal

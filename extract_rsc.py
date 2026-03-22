@@ -16,6 +16,7 @@ import dataclasses
 import datetime as dt
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,33 @@ RAD_HEADER_SIZE = 5
 RSC_FIXED_SIZE = 17
 ENCRYPTION_FLAG = 0x80
 BUFFER_SIZE = 16
+DDMI_MAGIC = b"DDMI"
+DDMI_NAME_RE = re.compile(rb"[A-Za-z0-9_./ -]{3,}")
+HEX_NAME_RE = re.compile(r"^[0-9A-Fa-f]{12,}$")
+WINDOWS_RESERVED_BASENAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
 
 SEED_PATTERNS_BY_SUFFIX = {
     ".dmi": b"\x89PNG\r\n\x1a\n",
@@ -57,6 +85,8 @@ TYPE_INFO = {
     # Observed in sample archives as unencrypted TTF/OTF payloads.
     0x0E: ("Font", ".ttf", {"ttf", "otf"}),
     0x0B: ("JPG", ".jpg", {"jpg"}),
+    # DDMI records contain sprite state metadata, not raw media payloads.
+    0x0C: ("DDMI Metadata", ".ddmi", set()),
     # Observed in client cache samples as nested RAD stream payloads.
     0x0A: ("Nested RAD/RSC", ".rsc", set()),
 }
@@ -172,8 +202,13 @@ def sanitize_relpath(name: str) -> pathlib.Path:
     for part in raw.split("/"):
         if not part or part in {".", ".."}:
             continue
-        safe = "".join(ch if (32 <= ord(ch) < 127 and ch not in '<>:"|?*') else "_" for ch in part)
-        safe = safe.strip()
+        safe = "".join(ch if (ord(ch) >= 32 and ch not in '<>:"|?*') else "_" for ch in part)
+        safe = safe.strip().rstrip(".")
+        if not safe:
+            continue
+        stem = safe.split(".", 1)[0]
+        if stem.upper() in WINDOWS_RESERVED_BASENAMES:
+            safe = f"_{safe}"
         if safe:
             parts.append(safe)
     if not parts:
@@ -202,6 +237,21 @@ def sniff_kind(data: bytes) -> str | None:
         return "ttf"
     if data.startswith(b"OTTO"):
         return "otf"
+    return None
+
+
+def ddmi_label_from_payload(data: bytes) -> str | None:
+    if not data.startswith(DDMI_MAGIC):
+        return None
+    for match in DDMI_NAME_RE.finditer(data[4:]):
+        text = match.group().decode("ascii", errors="ignore").strip(" .")
+        if not text:
+            continue
+        if HEX_NAME_RE.fullmatch(text):
+            continue
+        if text.upper() in WINDOWS_RESERVED_BASENAMES:
+            continue
+        return text
     return None
 
 
@@ -357,6 +407,7 @@ class Summary:
     decrypted_seed_missing: int = 0
     decrypted_ok: int = 0
     decrypted_fail: int = 0
+    metadata_skipped: int = 0
     validation_ok: int = 0
     validation_fail: int = 0
     type_counts: Counter[int] = dataclasses.field(default_factory=Counter)
@@ -368,6 +419,7 @@ class Extractor:
         out_dir: pathlib.Path,
         write_encrypted: bool = True,
         decrypt_encrypted: bool = False,
+        write_metadata: bool = False,
         decrypted_subdir: str = "decrypted",
         encrypted_subdir: str = "encrypted",
         recurse_nested: bool = True,
@@ -379,6 +431,7 @@ class Extractor:
         self.out_dir = out_dir
         self.write_encrypted = write_encrypted
         self.decrypt_encrypted = decrypt_encrypted
+        self.write_metadata = write_metadata
         self.decrypted_subdir = decrypted_subdir
         self.encrypted_subdir = encrypted_subdir
         self.recurse_nested = recurse_nested
@@ -491,6 +544,9 @@ class Extractor:
 
             if effective_encrypted and not self.write_encrypted:
                 continue
+            if entry.base_type == 0x0C and payload.startswith(DDMI_MAGIC) and not self.write_metadata:
+                self.summary.metadata_skipped += 1
+                continue
 
             write_dir = target_dir
             if decrypted:
@@ -498,7 +554,7 @@ class Extractor:
             elif effective_encrypted:
                 write_dir = target_dir / self.encrypted_subdir
 
-            out_path = self._choose_output_path(write_dir, entry, default_ext, effective_encrypted)
+            out_path = self._choose_output_path(write_dir, entry, payload, default_ext, effective_encrypted)
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_bytes(payload)
             self.summary.extracted_files += 1
@@ -542,6 +598,7 @@ class Extractor:
         self,
         target_dir: pathlib.Path,
         entry: RscEntry,
+        payload: bytes,
         default_ext: str,
         encrypted: bool,
     ) -> pathlib.Path:
@@ -553,7 +610,8 @@ class Extractor:
             else:
                 candidate = target_dir / rel
         else:
-            candidate = target_dir / f"entry_{entry.index:06d}{default_ext}"
+            fallback_stem = self._fallback_stem(entry, payload)
+            candidate = target_dir / f"{fallback_stem}{default_ext}"
 
         if encrypted:
             candidate = candidate.with_name(candidate.name + ".enc")
@@ -561,6 +619,15 @@ class Extractor:
             candidate = candidate.with_suffix(default_ext)
 
         return self._dedupe(candidate)
+
+    def _fallback_stem(self, entry: RscEntry, payload: bytes) -> str:
+        if entry.base_type == 0x0C:
+            label = ddmi_label_from_payload(payload)
+            if label:
+                rel = sanitize_relpath(label)
+                if rel.parts:
+                    return "__".join(rel.parts)
+        return f"entry_{entry.index:06d}"
 
     def _dedupe(self, path: pathlib.Path) -> pathlib.Path:
         count = self._written_paths[path]
@@ -593,6 +660,11 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
         default="encrypted",
         help="Subdirectory name used for still-encrypted files (default: encrypted)",
     )
+    parser.add_argument(
+        "--include-metadata",
+        action="store_true",
+        help="Write DDMI metadata records (type 0x0C). Off by default to avoid thousands of low-value files.",
+    )
     parser.add_argument("--no-recursive", action="store_true", help="Disable recursive parsing of nested RAD streams")
     parser.add_argument("--quiet", action="store_true", help="Suppress per-entry logs (summary only)")
     return parser.parse_args(list(argv))
@@ -606,6 +678,7 @@ def main(argv: Iterable[str]) -> int:
         out_dir=args.out,
         write_encrypted=not args.skip_encrypted,
         decrypt_encrypted=args.decrypt_encrypted,
+        write_metadata=args.include_metadata,
         decrypted_subdir=args.decrypted_subdir,
         encrypted_subdir=args.encrypted_subdir,
         recurse_nested=not args.no_recursive,
@@ -629,6 +702,7 @@ def main(argv: Iterable[str]) -> int:
     print(f"  Seeds missing:       {s.decrypted_seed_missing}")
     print(f"  Decrypt success:     {s.decrypted_ok}")
     print(f"  Decrypt failed:      {s.decrypted_fail}")
+    print(f"  Metadata skipped:    {s.metadata_skipped}")
     print(f"  Files written:       {s.extracted_files}")
     print(f"  Validation ok:       {s.validation_ok}")
     print(f"  Validation fail:     {s.validation_fail}")
