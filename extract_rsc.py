@@ -11,6 +11,7 @@ Supports:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import dataclasses
 import datetime as dt
 import os
@@ -35,6 +36,16 @@ SEED_PATTERNS_BY_SUFFIX = {
     ".jpeg": b"\xff\xd8\xff",
     ".mid": b"MThd",
     ".midi": b"MThd",
+}
+
+# Fallback signatures for encrypted entries when filename suffixes are missing
+# or non-descriptive.
+SEED_PATTERNS_BY_BASE_TYPE = {
+    0x01: b"MThd",
+    0x02: b"OggS\x00",
+    0x03: b"\x89PNG\r\n\x1a\n",
+    0x06: b"\x89PNG\r\n\x1a\n",
+    0x0B: b"\xff\xd8\xff",
 }
 
 # Base type mapping from byond-data-docs/formats/RSC.md
@@ -235,7 +246,10 @@ def decrypt_beyond_payload(data: bytes, seed: int) -> bytes:
 
 def seed_pattern_for_entry(entry: RscEntry) -> bytes | None:
     suffix = pathlib.Path(entry.name).suffix.lower()
-    return SEED_PATTERNS_BY_SUFFIX.get(suffix)
+    pattern = SEED_PATTERNS_BY_SUFFIX.get(suffix)
+    if pattern is not None:
+        return pattern
+    return SEED_PATTERNS_BY_BASE_TYPE.get(entry.base_type)
 
 
 def build_seed_helper(binary_path: pathlib.Path, source_path: pathlib.Path) -> pathlib.Path | None:
@@ -267,6 +281,8 @@ def recover_encryption_seeds(
     entries: list[RscEntry],
     helper_binary: pathlib.Path,
 ) -> dict[int, int]:
+    helper_cmd = str(helper_binary if helper_binary.is_absolute() else helper_binary.resolve())
+
     lines: list[str] = []
     for entry in entries:
         if not entry.encrypted:
@@ -282,30 +298,51 @@ def recover_encryption_seeds(
     if not lines:
         return {}
 
-    try:
-        proc = subprocess.run(
-            [str(helper_binary)],
-            input="".join(lines).encode("ascii"),
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return {}
-
-    seed_map: dict[int, int] = {}
-    for raw in proc.stdout.decode("ascii", errors="replace").splitlines():
-        parts = raw.strip().split()
-        if len(parts) != 2:
-            continue
-        idx_s, seed_s = parts
-        if seed_s == "NONE":
-            continue
+    def run_seed_helper(batch: list[str]) -> dict[int, int]:
+        if not batch:
+            return {}
         try:
-            seed_map[int(idx_s)] = int(seed_s, 16)
-        except ValueError:
-            continue
-    return seed_map
+            proc = subprocess.run(
+                [helper_cmd],
+                input="".join(batch).encode("ascii"),
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return {}
+
+        seed_map: dict[int, int] = {}
+        for raw in proc.stdout.decode("ascii", errors="replace").splitlines():
+            parts = raw.strip().split()
+            if len(parts) != 2:
+                continue
+            idx_s, seed_s = parts
+            if seed_s == "NONE":
+                continue
+            try:
+                seed_map[int(idx_s)] = int(seed_s, 16)
+            except ValueError:
+                continue
+        return seed_map
+
+    cpu_count = os.cpu_count() or 1
+    max_workers = min(8, cpu_count)
+    # Keep small batches on a single helper process to avoid process startup
+    # overhead; fan out only for larger workloads.
+    if max_workers <= 1 or len(lines) < 128:
+        return run_seed_helper(lines)
+
+    worker_count = min(max_workers, len(lines))
+    chunk_size = (len(lines) + worker_count - 1) // worker_count
+    chunks = [lines[i : i + chunk_size] for i in range(0, len(lines), chunk_size)]
+
+    merged: dict[int, int] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [executor.submit(run_seed_helper, chunk) for chunk in chunks]
+        for future in concurrent.futures.as_completed(futures):
+            merged.update(future.result())
+    return merged
 
 
 @dataclasses.dataclass

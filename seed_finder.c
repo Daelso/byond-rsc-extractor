@@ -9,9 +9,6 @@
  *   <label> <pattern_hex> <cipher_prefix_hex>
  * Output lines:
  *   <label> <seed_hex_or_NONE>
- *
- * The implementation assumes seeds are monotonically non-decreasing in stream
- * order for a single RAD/RSC container. This matches observed BYOND cache data.
  */
 
 static inline uint32_t step_state(uint32_t state, uint8_t observed_byte) {
@@ -49,7 +46,6 @@ int main(void) {
     char label[256];
     char pattern_hex[256];
     char cipher_hex[4096];
-    uint32_t min_seed = 0;
 
     while (scanf("%255s %255s %4095s", label, pattern_hex, cipher_hex) == 3) {
         uint8_t pattern[64];
@@ -63,20 +59,12 @@ int main(void) {
         }
 
         uint32_t low = (uint32_t)(cipher[0] ^ pattern[0]);
-        uint32_t start_hi = min_seed >> 8;
-        uint32_t min_low = min_seed & 0xFFu;
-        if (low < min_low) {
-            start_hi++;
-        }
 
         uint32_t found = 0;
         int found_ok = 0;
 
-        for (uint32_t hi = start_hi; hi < (1u << 24); ++hi) {
+        for (uint32_t hi = 0; hi < (1u << 24); ++hi) {
             uint32_t seed = (hi << 8) | low;
-            if (seed < min_seed) {
-                continue;
-            }
 
             uint32_t state = seed;
             int match = 1;
@@ -97,7 +85,6 @@ int main(void) {
         }
 
         if (found_ok) {
-            min_seed = found;
             printf("%s %08x\n", label, found);
         } else {
             printf("%s NONE\n", label);
